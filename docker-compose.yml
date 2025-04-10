@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: url_shortener_db
+    environment:
+      POSTGRES_USER: urluser
+      POSTGRES_PASSWORD: urlpass
+      POSTGRES_DB: urlshortener
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urluser -d urlshortener"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - url_network
+
+  redis:
+    image: redis:latest
+    container_name: url_shortener_cache
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - url_network
+
+  api:
+    build: .
+    container_name: url_shortener_api
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=urluser
+      - DB_PASSWORD=urlpass
+      - DB_NAME=urlshortener
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVER_PORT=8080
+    networks:
+      - url_network
+    restart: on-failure
+
+volumes:
+  postgres_data:
+
+networks:
+  url_network:
+    driver: bridge
